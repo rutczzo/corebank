@@ -15,7 +15,7 @@ CREATE TABLE accounts (
                     CHECK ( status IN ('ACTIVE', 'FROZEN', 'CLOSED') ),
     is_house        BOOLEAN NOT NULL DEFAULT FALSE,
     balance         NUMERIC(19, 0) NOT NULL DEFAULT 0,
-    created_at      TIMESTAMPZ NOT NULL DEFAULT now()
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE INDEX idx_accounts_customer ON accounts(customer_id);

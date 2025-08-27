@@ -1,8 +1,8 @@
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/corebank
+    url: jdbc:postgresql://localhost:5433/corebank
     username: core
-    password: corepw
+    password: core
   jpa:
     open-in-view: false
     hibernate:

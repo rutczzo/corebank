@@ -5,9 +5,9 @@ services:
     environment:
       POSTGRES_DB: corebank
       POSTGRES_USER: core
-      POSTGRES_PASSWORD: corepw
+      POSTGRES_PASSWORD: core
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - corebank_pg:/var/lib/postgresql/data
     healthcheck:

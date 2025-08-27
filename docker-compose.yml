@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: corebank-postgres
+    environment:
+      POSTGRES_DB: corebank
+      POSTGRES_USER: core
+      POSTGRES_PASSWORD: corepw
+    ports:
+      - "5432:5432"
+    volumes:
+      - corebank_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U core -d corebank"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  corebank_pg:

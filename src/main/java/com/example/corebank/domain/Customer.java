@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
-@Entity @Table(name="cutomers")
+@Entity @Table(name="customers")
 public class Customer {
     @Id @Column(columnDefinition = "uuid")
     private UUID id = UUID.randomUUID();

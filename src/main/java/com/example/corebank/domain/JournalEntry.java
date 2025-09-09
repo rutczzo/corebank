@@ -1,6 +1,10 @@
 package com.example.corebank.domain;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcType;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
@@ -18,7 +22,8 @@ public class JournalEntry {
     @ManyToOne(fetch=FetchType.LAZY) @JoinColumn(name="account_id", nullable=false)
     private Account account;
 
-    @Column(nullable=false, length=1)
+    @JdbcTypeCode(SqlTypes.CHAR)
+    @Column(name = "direction", nullable=false, columnDefinition="char(1)")
     private String direction; // 'D' or 'C'
 
     @Column(nullable=false, precision=19, scale=0)

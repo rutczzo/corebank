@@ -101,6 +101,8 @@ DB 테이블과 매핑된 객체입니다.
 
 ## 데이터 모델과 규칙
 
+> 스키마: [schema.md](./src/docs/schema.md)
+
 **엔티티**
 - Customer — 고객
 - Account — 계좌 (고객 소유, balance, status 포함)
@@ -195,7 +197,7 @@ DB 테이블과 매핑된 객체입니다.
 
 ##  🧪  수동 테스트
 
-> 상세 시나리오: 'docs/TESTING.md'
+> 상세 시나리오: [TESTING.md](./src/docs/TESTING.md)
 
 1) 애플리케이션 실행
 ```bash

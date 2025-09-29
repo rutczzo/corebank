@@ -1,176 +1,105 @@
 # TESTING - 수동 테스트 시나리오
 
-본 문서는 Corebank 프로젝트 **수동 테스트 절차**를 정리합니다.
-스모크(간단) 절차는 README 최하단을 참고하세요.
+본 문서는 Corebank 프로젝트의 주요 기능에 대한 수동 테스트 절차를 정리합니다.
 
 ---
 
-## 0) 사전 준비
+## 0. 사전 준비
 
-- Docker로 PostgreSQL이 실행 중이며 포트가 5433으로 포워딩되어 있다고 가정합니다.
-- 애플리케이션 실행:
-```bash
-./gradlew bootRun
-```
-- 헬스 체크
-```bash
-http://localhost:8080/actuator/health
-```
+1.  **데이터베이스 실행**
+    ```bash
+    docker-compose up -d
+    ```
+2.  **애플리케이션 실행**
+    ```bash
+    ./gradlew bootRun
+    ```
+    애플리케이션이 시작되면 테스트에 필요한 계좌(HOUSE-0001, A-0001, B-0001)가 잔액 0원으로 자동 생성됩니다.
 
-## 1) 모의 데이터 세팅
-- Docker 컨테이너 이름 확인:
-```bash
-docker ps
-```
-- psql 접속:
-```bash
-docker exec -it <postgres-container> psql -U core -d corebank
-```
-- 아래 SQL을 실행 (UUID 고정값 사용):
-```sql
--- 고객
-INSERT INTO customers (id, name, created_at) VALUES
-('00000000-0000-0000-0000-000000000001', 'HOUSE', now())
-ON CONFLICT DO NOTHING;
-INSERT INTO customers (id, name, created_at) VALUES
-('00000000-0000-0000-0000-000000000002', 'Alice', now()),
-('00000000-0000-0000-0000-000000000003', 'Bob',   now())
-ON CONFLICT DO NOTHING;
+3.  **스웨거 UI 접속**
+    웹 브라우저에서 아래 주소로 접속합니다.
+    - `http://localhost:8080/swagger-ui.html`
 
--- 계좌
-INSERT INTO accounts (id, customer_id, account_number, currency, status, is_house, balance, created_at) VALUES
-('10000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'HOUSE-0001', 'KRW', 'ACTIVE', TRUE,  0, now())
-ON CONFLICT DO NOTHING;
-INSERT INTO accounts (id, customer_id, account_number, currency, status, is_house, balance, created_at) VALUES
-('10000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000002', 'A-0001',     'KRW', 'ACTIVE', FALSE, 0, now()),
-('10000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000003', 'B-0001',     'KRW', 'ACTIVE', FALSE, 0, now())
-ON CONFLICT DO NOTHING;
+---
 
--- 확인
-SELECT account_number, balance, status, is_house FROM accounts ORDER BY account_number;
-```
+## 1. 테스트 시나리오
 
-## 2) 시나리오 A - 입금(Deposit) 멱등성
-### A-1. 입금
-```bash
-curl -s -X POST http://localhost:8080/api/transactions/deposit \
-  -H "Content-Type: application/json" \
-  -d '{"accountNo":"A-0001","idempotencyKey":"K-DEP-001","amount":5000}'
-```
-**기대: SUCCEEDED**
+아래 시나리오에 따라 스웨거 UI에서 각 API를 순서대로 호출하며 결과를 확인합니다.
 
-### A-2. 동일 키 재시도(멱등)
-```bash
-curl -s -X POST http://localhost:8080/api/transactions/deposit \
-  -H "Content-Type: application/json" \
-  -d '{"accountNo":"A-0001","idempotencyKey":"K-DEP-001","amount":5000}'
-```
-**기대: 동일 응답, DB 변화 없음**
+### STEP 1: 입금 (성공)
 
-### A-3. 검증 쿼리
-```sql
-SELECT id, type, amount, status, idempotency_key
-  FROM transfers WHERE idempotency_key='K-DEP-001';
+-   `POST /api/transactions/deposit` 항목을 펼치고 `Try it out`을 클릭합니다.
+-   `Request body`에 아래와 같이 입력합니다.
+    ```json
+    {
+      "accountNo": "A-0001",
+      "idempotencyKey": "test-deposit-001",
+      "amount": 5000
+    }
+    ```
+-   `Execute` 버튼을 클릭합니다.
+-   **결과 확인**:
+     - `Responses` 섹션에서 `Code`가 `200`이고, 응답 본문에 `status: "SUCCESS"`가 표시되는지 확인합니다.
 
-SELECT account_number, balance
-  FROM accounts WHERE account_number='A-0001';
+### STEP 2: 멱등성 테스트 (입금)
 
-SELECT direction, amount
-  FROM journal_entries
- ORDER BY id DESC LIMIT 5;
-```
+-   STEP 1과 **완전히 동일한 내용**으로 다시 `Execute` 버튼을 클릭합니다.
+-   **결과 확인**: 응답은 `200 SUCCESS`로 동일하게 오는지 확인합니다. (DB 잔액은 변동 없음)
 
-## 3) 시나리오 B - 출금(Withdraw) + 잔액 검사
-### B-1. 출금
-```bash
-curl -s -X POST http://localhost:8080/api/transactions/withdraw \
-  -H "Content-Type: application/json" \
-  -d '{"accountNo":"A-0001","idempotencyKey":"K-WITH-001","amount":1000}'
-```
-**기대: SUCCEEDED**
+### STEP 3: 출금 (성공)
 
-### B-2. 잔액 부족 출금
-```bash
-curl -s -X POST http://localhost:8080/api/transactions/withdraw \
-  -H "Content-Type: application/json" \
-  -d '{"accountNo":"A-0001","idempotencyKey":"K-WITH-002","amount":10000}'
-```
-**기대: 422 Unprocessable(잔액 부족)**
+-   `POST /api/transactions/withdraw` 항목을 펼치고 `Try it out`을 클릭합니다.
+-   `Request body`에 아래와 같이 입력합니다.
+    ```json
+    {
+      "accountNo": "A-0001",
+      "idempotencyKey": "test-withdraw-001",
+      "amount": 1000
+    }
+    ```
+-   `Execute` 버튼을 클릭합니다.
+-   **결과 확인**: `200 SUCCESS` 응답을 확인합니다. (A-0001 잔액: 4000)
 
-### B-3. 검증 쿼리
-```sql
-SELECT account_number, balance FROM accounts WHERE account_number='A-0001';
-SELECT type, amount, status FROM transfers WHERE idempotency_key IN ('K-WITH-001','K-WITH-002') ORDER BY created_at;
-SELECT direction, amount FROM journal_entries ORDER BY id DESC LIMIT 5;
-```
+### STEP 4: 계좌 이체 (성공)
 
-## 4) 시나리오 C - 계좌이체(Account Transfer)
-### C-1. 이체
-```bash
-curl -s -X POST http://localhost:8080/api/transactions/transfer \
-  -H "Content-Type: application/json" \
-  -d '{"fromAccountNo":"A-0001","toAccountNo":"B-0001","idempotencyKey":"K-TRF-001","amount":2000}'
-```
-**기대: SUCCEEDED**
+-   `POST /api/transactions/transfer` 항목을 펼치고 `Try it out`을 클릭합니다.
+-   `Request body`에 아래와 같이 입력합니다.
+    ```json
+    {
+      "fromAccountNo": "A-0001",
+      "toAccountNo": "B-0001",
+      "idempotencyKey": "test-transfer-001",
+      "amount": 2000
+    }
+    ```
+-   `Execute` 버튼을 클릭합니다.
+-   **결과 확인**: `200 SUCCESS` 응답을 확인합니다. (A-0001 잔액: 2000, B-0001 잔액: 2000)
 
-### C-2. 동일 키 재시도(멱등)
-```bash
-curl -s -X POST http://localhost:8080/api/transactions/transfer \
-  -H "Content-Type: application/json" \
-  -d '{"fromAccountNo":"A-0001","toAccountNo":"B-0001","idempotencyKey":"K-TRF-001","amount":2000}'
-```
-**기대: 동일 응답, DB 변화 없음**
+### STEP 5: 오류 테스트 (잔액 부족)
 
-### C-3. 검증 쿼리
-```sql
-SELECT account_number, balance
-  FROM accounts
- WHERE account_number IN ('A-0001','B-0001')
- ORDER BY account_number;
+-   `POST /api/transactions/withdraw` 항목에서 `Try it out`을 클릭합니다.
+-   `Request body`에 아래와 같이 입력합니다. (잔액 2000원인데 3000원 출금 시도)
+    ```json
+    {
+      "accountNo": "A-0001",
+      "idempotencyKey": "test-error-001",
+      "amount": 3000
+    }
+    ```
+-   `Execute` 버튼을 클릭합니다.
+-   **결과 확인**: `Code`가 **`422`** 이고, 응답 본문에 `error: "insufficient funds"` 메시지가 포함되어 있는지 확인합니다.
 
-SELECT j.direction, j.amount
-  FROM journal_entries j
-  JOIN transfers t ON t.id = j.transfer_id
- WHERE t.idempotency_key='K-TRF-001'
- ORDER BY j.id;
-```
+### STEP 6: 오류 테스트 (자기 이체)
 
-## 5) 시나리오 D - 규칙 위반/예외
-### D-1. 금액 0 또는 음수
-``` bash
-curl -s -X POST http://localhost:8080/api/transactions/deposit \
-  -H "Content-Type: application/json" \
-  -d '{"accountNo":"A-0001","idempotencyKey":"K-NEG-001","amount":0}'
-```
-**기대: 400 Bad Request**
-
-### D-2. 자기 이체 금지
-```bash
-curl -s -X POST http://localhost:8080/api/transactions/transfer \
-  -H "Content-Type: application/json" \
-  -d '{"fromAccountNo":"A-0001","toAccountNo":"A-0001","idempotencyKey":"K-TRF-ERR","amount":100}'
-```
-**기대: 400 Bad Request**
-
-### D-3. 비활성 계좌 (FROZEN)
-```sql
-UPDATE accounts SET status='FROZEN' WHERE account_number='B-0001';
-```
-```bash
-curl -s -X POST http://localhost:8080/api/transactions/deposit \
-  -H "Content-Type: application/json" \
-  -d '{"accountNo":"B-0001","idempotencyKey":"K-FRZ-001","amount":1000}'
-```
-**기대: 422 Unprocessable**
-
-## 6) 리셋(재실행용)
-```sql
-DELETE FROM journal_entries;
-DELETE FROM transfers;
-UPDATE accounts SET balance = 0, status='ACTIVE' WHERE account_number IN ('A-0001','B-0001','HOUSE-0001');
-```
-**전체 초기화(주의: 모든 데이터 삭제)**
-```bash
-docker compose down -v
-docker compose up -d
-```
+-   `POST /api/transactions/transfer` 항목에서 `Try it out`을 클릭합니다.
+-   `Request body`에 아래와 같이 입력합니다.
+    ```json
+    {
+      "fromAccountNo": "A-0001",
+      "toAccountNo": "A-0001",
+      "idempotencyKey": "test-error-002",
+      "amount": 100
+    }
+    ```
+-   `Execute` 버튼을 클릭합니다.
+-   **결과 확인**: `Code`가 **`422`** 이고, 응답 본문에 `error: "cannot transfer to same account"` 메시지가 포함되어 있는지 확인합니다.

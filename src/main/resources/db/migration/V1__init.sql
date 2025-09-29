@@ -1,5 +1,3 @@
-CREATE TYPE currency AS ENUM ('KRW');
-
 CREATE TABLE customers (
     id              UUID PRIMARY KEY,
     name            VARCHAR(100) NOT NULL,
@@ -10,7 +8,7 @@ CREATE TABLE accounts (
     id              UUID PRIMARY KEY,
     customer_id     UUID NOT NULL REFERENCES customers(id),
     account_number  VARCHAR(32) NOT NULL UNIQUE,
-    currency        currency NOT NULL DEFAULT 'KRW',
+    currency        VARCHAR(3) NOT NULL DEFAULT 'KRW',
     status          VARCHAR(16) NOT NULL DEFAULT 'ACTIVE'
                     CHECK ( status IN ('ACTIVE', 'FROZEN', 'CLOSED') ),
     is_house        BOOLEAN NOT NULL DEFAULT FALSE,
@@ -27,7 +25,7 @@ CREATE TABLE transfers (
     from_account    UUID REFERENCES accounts(id),
     to_account      UUID REFERENCES accounts(id),
     amount          NUMERIC(19, 0) NOT NULL CHECK ( amount > 0 ),
-    currency        currency NOT NULL,
+    currency        VARCHAR(3) NOT NULL,
     status          VARCHAR(16) NOT NULL
                     CHECK ( status IN ('PENDING', 'SUCCEEDED', 'FAILED') ),
     idempotency_key VARCHAR(64) UNIQUE,

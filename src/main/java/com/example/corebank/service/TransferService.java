@@ -9,11 +9,14 @@ import com.example.corebank.domain.Transfer;
 import com.example.corebank.repository.AccountRepository;
 import com.example.corebank.repository.JournalEntryRepository;
 import com.example.corebank.repository.TransferRepository;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 @Service
 public class TransferService {
@@ -22,8 +25,12 @@ public class TransferService {
     private final JournalEntryRepository journalRepo;
     private final TransferRepository transferRepo;
 
-    public TransferService(AccountRepository a, JournalEntryRepository j, TransferRepository t) {
-        this.accountRepo = a; this.journalRepo = j; this.transferRepo = t;
+    public TransferService(AccountRepository a,
+                           JournalEntryRepository j,
+                           TransferRepository t) {
+        this.accountRepo = a;
+        this.journalRepo = j;
+        this.transferRepo = t;
     }
 
     @Transactional
@@ -48,11 +55,10 @@ public class TransferService {
         t.setStatus("PENDING");
         t.setIdempotencyKey(idempotencyKey);
 
-        try {
-            transferRepo.saveAndFlush(t);
-        } catch (DataIntegrityViolationException dup) {
+        if (!insertTransferIfAbsent(t)) {
             return transferRepo.findByIdempotencyKey(idempotencyKey).orElseThrow();
         }
+        t = transferRepo.findById(t.getId()).orElseThrow();
 
         house.setBalance(house.getBalance().subtract(amount));
         to.setBalance(to.getBalance().add(amount));
@@ -71,7 +77,8 @@ public class TransferService {
         jeC.setAmount(amount);
         journalRepo.save(jeC);
 
-        t.setStatus("SUCCESS");
+        t.setStatus("SUCCEEDED");
+        transferRepo.save(t);
         return t;
     }
 
@@ -81,13 +88,13 @@ public class TransferService {
         if (existing.isPresent()) return existing.get();
 
         assertPositive(amount);
-        var from = accountRepo.findByAccountNumber(fromAccountNo)
-                .orElseThrow(() -> new AccountNotFoundException("Account not found: " + fromAccountNo));
+        var fromId = getAccountIdByNumber(fromAccountNo);
+        var houseId = getAccountIdByNumber("HOUSE-0001");
+        var lockedAccounts = lockAccounts(fromId, houseId);
+        var from = lockedAccounts.get(fromId);
         assertActive(from);
         assertSufficient(from, amount);
-
-        var house = accountRepo.findByAccountNumber("HOUSE-0001")
-                .orElseThrow(() -> new AccountNotFoundException("House account not found"));
+        var house = lockedAccounts.get(houseId);
 
         var t = new Transfer();
         t.setType("WITHDRAW");
@@ -98,11 +105,10 @@ public class TransferService {
         t.setStatus("PENDING");
         t.setIdempotencyKey(idempotencyKey);
 
-        try {
-            transferRepo.saveAndFlush(t);
-        } catch (DataIntegrityViolationException dup) {
+        if (!insertTransferIfAbsent(t)) {
             return transferRepo.findByIdempotencyKey(idempotencyKey).orElseThrow();
         }
+        t = transferRepo.findById(t.getId()).orElseThrow();
 
         from.setBalance(from.getBalance().subtract(amount));
         house.setBalance(house.getBalance().add(amount));
@@ -121,7 +127,8 @@ public class TransferService {
         jeC.setAmount(amount);
         journalRepo.save(jeC);
 
-        t.setStatus("SUCCESS");
+        t.setStatus("SUCCEEDED");
+        transferRepo.save(t);
         return t;
     }
 
@@ -131,10 +138,11 @@ public class TransferService {
         if (existing.isPresent()) return existing.get();
 
         assertPositive(amount);
-        var from = accountRepo.findByAccountNumber(fromNo)
-                .orElseThrow(() -> new AccountNotFoundException("Account not found: " + fromNo));
-        var to = accountRepo.findByAccountNumber(toNo)
-                .orElseThrow(() -> new AccountNotFoundException("Account not found: " + toNo));
+        var fromId = getAccountIdByNumber(fromNo);
+        var toId = getAccountIdByNumber(toNo);
+        var lockedAccounts = lockAccounts(fromId, toId);
+        var from = lockedAccounts.get(fromId);
+        var to = lockedAccounts.get(toId);
         if (from.getId().equals(to.getId()))
             throw new IllegalStateException("cannot transfer to same account");
         assertActive(from);
@@ -150,11 +158,10 @@ public class TransferService {
         t.setStatus("PENDING");
         t.setIdempotencyKey(idempotencyKey);
 
-        try {
-            transferRepo.saveAndFlush(t);
-        } catch (DataIntegrityViolationException dup) {
+        if (!insertTransferIfAbsent(t)) {
             return transferRepo.findByIdempotencyKey(idempotencyKey).orElseThrow();
         }
+        t = transferRepo.findById(t.getId()).orElseThrow();
 
         from.setBalance(from.getBalance().subtract(amount));
         to.setBalance(to.getBalance().add(amount));
@@ -175,7 +182,8 @@ public class TransferService {
         jeC.setAmount(amount);
         journalRepo.save(jeC);
 
-        t.setStatus("SUCCESS");
+        t.setStatus("SUCCEEDED");
+        transferRepo.save(t);
         return t;
     }
 
@@ -195,5 +203,36 @@ public class TransferService {
         if (acc.getBalance().compareTo(amount) < 0) {
             throw new InsufficientFundsException("insufficient funds");
         }
+    }
+
+    private UUID getAccountIdByNumber(String accountNo) {
+        return accountRepo.findIdByAccountNumber(accountNo)
+                .orElseThrow(() -> new AccountNotFoundException("Account not found: " + accountNo));
+    }
+
+    private Map<UUID, Account> lockAccounts(UUID... accountIds) {
+        return List.of(accountIds).stream()
+                .distinct()
+                .sorted(Comparator.naturalOrder())
+                .map(this::findByIdWithLock)
+                .collect(java.util.stream.Collectors.toMap(Account::getId, account -> account));
+    }
+
+    private Account findByIdWithLock(UUID accountId) {
+        return accountRepo.findByIdWithLock(accountId)
+                .orElseThrow(() -> new AccountNotFoundException("Account not found: " + accountId));
+    }
+
+    private boolean insertTransferIfAbsent(Transfer transfer) {
+        return transferRepo.insertIfAbsent(
+                transfer.getId(),
+                transfer.getType(),
+                transfer.getFromAccount().getId(),
+                transfer.getToAccount().getId(),
+                transfer.getAmount(),
+                transfer.getCurrency(),
+                transfer.getStatus(),
+                transfer.getIdempotencyKey()
+        ) == 1;
     }
 }

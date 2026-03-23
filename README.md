@@ -149,7 +149,6 @@ curl -X POST http://localhost:8080/api/transactions/transfer \
 
 상세 내용:
 
-- [result.md](./result.md)
 - [corebank.md](./corebank.md)
 - [src/docs/TESTING.md](./src/docs/TESTING.md)
 - [src/docs/LEARNING.md](./src/docs/LEARNING.md)

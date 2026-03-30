@@ -117,4 +117,3 @@
 - [README.md](../../README.md)
 - [schema.md](./schema.md)
 - [TESTING.md](./TESTING.md)
-- [result.md](../../result.md)

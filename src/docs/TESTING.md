@@ -272,4 +272,3 @@ ORDER BY account_number;
 ## 4. 참고 문서
 
 - [README.md](../../README.md)
-- [result.md](../../result.md)

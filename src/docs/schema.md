@@ -96,4 +96,3 @@ erDiagram
 ## 참고
 
 - 실제 DDL: [V1__init.sql](../main/resources/db/migration/V1__init.sql)
-- 동시성 검증 결과: [result.md](../../result.md)

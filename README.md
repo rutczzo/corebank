@@ -152,6 +152,7 @@ curl -X POST http://localhost:8080/api/transactions/transfer \
 - [src/docs/TESTING.md](./src/docs/TESTING.md)
 - [src/docs/LEARNING.md](./src/docs/LEARNING.md)
 - [src/docs/schema.md](./src/docs/schema.md)
+- [src/docs/summary.md](./src/docs/summary.md)
 
 ## 라이선스
 

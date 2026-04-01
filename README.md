@@ -137,7 +137,7 @@ curl -X POST http://localhost:8080/api/transactions/transfer \
 - Race condition 기준선
   - 동일 계좌에 `150`건 동시 출금
   - 락 미적용 시 `150건` 모두 `200` 응답
-  - 최종 잔액 `86,000원`으로 불일치 발생
+  - 최종 잔액 `84,000원`으로 불일치 발생
 - Pessimistic Lock 적용 후
   - `200 = 100건`, `422 = 50건`
   - 최종 잔액 `0원`

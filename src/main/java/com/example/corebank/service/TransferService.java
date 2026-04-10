@@ -39,12 +39,12 @@ public class TransferService {
         if (existing.isPresent()) return existing.get();
 
         assertPositive(amount);
-        var to = accountRepo.findByAccountNumber(toAccountNo)
-                .orElseThrow(() -> new AccountNotFoundException("Account not found: " + toAccountNo));
+        var toId = getAccountIdByNumber(toAccountNo);
+        var houseId = getAccountIdByNumber("HOUSE-0001");
+        var lockedAccounts = lockAccounts(toId, houseId);
+        var to = lockedAccounts.get(toId);
         assertActive(to);
-
-        var house = accountRepo.findByAccountNumber("HOUSE-0001")
-                .orElseThrow(() -> new AccountNotFoundException("House account not found"));
+        var house = lockedAccounts.get(houseId);
 
         var t = new Transfer();
         t.setType("DEPOSIT");

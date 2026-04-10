@@ -7,7 +7,7 @@
 - 계좌 입금, 출금, 계좌이체 API
 - 거래별 이중기장(`JournalEntry`) 기록
 - `Idempotency Key` 기반 중복 요청 방지
-- `PESSIMISTIC_WRITE` 기반 동시 출금/이체 정합성 보장
+- `PESSIMISTIC_WRITE` 기반 입금/출금/이체 정합성 보장
 - `@ControllerAdvice` 기반 일관된 에러 응답
 
 ## 기술 스택
@@ -70,12 +70,6 @@ docker-compose up -d
 - `HOUSE-0001`
 - `A-0001`
 - `B-0001`
-
-### 3. 테스트 / 빌드
-
-```bash
-./gradlew test
-```
 
 ## API
 

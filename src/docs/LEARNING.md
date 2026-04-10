@@ -38,10 +38,11 @@
 
 ### 3. 동시성 제어
 
-- 출금과 계좌이체는 잔액을 바꾸는 작업이므로 race condition 위험이 있습니다.
+- 입금, 출금, 계좌이체는 모두 잔액을 바꾸는 작업이므로 race condition 위험이 있습니다.
 - 최종 구현은 `AccountRepository.findByIdWithLock()`에 `PESSIMISTIC_WRITE`를 적용했습니다.
 - 중요한 점은 `accountNumber`로 `Account` 엔티티를 먼저 읽으면 영속성 컨텍스트 때문에 락 조회가 무력화될 수 있다는 점입니다.
 - 그래서 먼저 `findIdByAccountNumber()`로 ID만 조회하고, 그 다음 `findByIdWithLock()`로 실제 행 잠금을 잡습니다.
+- 이 패턴은 `deposit`, `withdraw`, `accountTransfer` 모두 동일하게 적용됩니다.
 
 ### 4. 데드락 회피
 
